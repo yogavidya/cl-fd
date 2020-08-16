@@ -3,7 +3,7 @@
   (:export :scratch
            :safe-defun :safe-function-success :safe-function-value
            :safe-function-return
-           :safe-function-value-multiple :safe-function-extra-values))
+   :safe-function-value-multiple :safe-function-extra-values))
 
 (defpackage :safer-code-restarts)
 (in-package :safer-code/src/scratch)
@@ -35,11 +35,32 @@
 
 (progn
   (defun @valid(x)
-    (and (not (null x)) (>= (length x) 2))
+    (and (not (null x)) (listp x) (>= (length x) 2))
     (typep (first x) 'boolean))
   (deftype safer-code-return ()
-    `(and list (satisfies safer-code/src/scratch::@valid))))
+    `(satisfies safer-code/src/scratch::@valid)))
 
+
+(defun @args-valid (#1=lambda-list in-types)
+  ;; examples:
+  ;; (a b c &key d e) :in-types () :keyword-types ((e integer)(d string))
+  ;; (a b c &rest stuff) :rest-types (or nil #validate-rest)
+  (declare (ignore in-types))
+  (let* ((optional-start (position '&optional lambda-list))
+	 (keywords-start (position '&key lambda-list))
+	 (rest-start (position '&rest lambda-list))
+	 (check-1 (when (and keywords-start rest-start optional-start)
+		    (error "mixing &rest, &key and &optional, if somehow admitted, is not advisable.")))
+	 (not-required-start (first (remove nil (list keywords-start rest-start optional-start))))
+	 (required-args (subseq lambda-list 0 not-required-start))
+	 (optional-args (when #2=optional-start (subseq lambda-list (1+ #2#))))
+	 (keyword-args (when #3=keywords-start (subseq lambda-list (1+ #3#))))
+	 (rest-arg (when #4=rest-start (subseq lambda-list (1+ #4#)))))
+    (declare (ignore check-1))
+    (format t "required: ~a~%optional: ~a~%keywords: ~a~%rest: ~a~%"
+	    required-args optional-args keyword-args rest-arg)))
+  
+  
 
 (defmacro safe-defun (name lambda-list 
                            &key documentation restarts function-body 
@@ -47,6 +68,7 @@
   (when (not (= (length in-types) (length lambda-list)))
     (error "in-types and lambda list must have matching lengths"))
   `(progn
+     (fmakunbound (quote ,name))
      (declaim (ftype (function ,in-types safer-code-return),name))
      (defun ,name ,lambda-list
       (symbol-macrolet ((formal-parameters '(,@lambda-list))
@@ -122,12 +144,9 @@
       (cdr (cdr result))
     (error "No multiple values")))
 
-
 (declaim (inline safe-function-return))
 (defun safe-function-return (success result)
   (list success result))
-
-(define-condition pippo (condition) nil)
 
 (safe-defun scratch (m n)
             :documentation
