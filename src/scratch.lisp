@@ -6,6 +6,7 @@
    :safe-function-value-multiple :safe-function-extra-values))
 
 (defpackage :safer-code-restarts)
+; this in master
 (in-package :safer-code/src/scratch)
 
 (defparameter *conditions* (list))
