@@ -4,7 +4,7 @@
            :safe-defun :safe-function-success :safe-function-value
            :safe-function-return
    :safe-function-value-multiple :safe-function-extra-values))
-; a-comment
+
 (defpackage :safer-code-restarts)
 (in-package :safer-code/src/scratch)
 
