@@ -33,9 +33,21 @@
                         (function-model condition)
                         (mismatched-parameters condition)))))
 
-(defmacro safe-defun (name lambda-list &key documentation restarts function-body (in-types nil) (out-type T))
+(progn
+  (defun @valid(x)
+    (and (not (null x)) (>= (length x) 2))
+    (typep (first x) 'boolean))
+  (deftype safer-code-return ()
+    `(and list (satisfies safer-code/src/scratch::@valid))))
+
+
+(defmacro safe-defun (name lambda-list 
+                           &key documentation restarts function-body 
+                           (in-types nil) (out-type T))
+  (when (not (= (length in-types) (length lambda-list)))
+    (error "in-types and lambda list must have matching lengths"))
   `(progn
-     ,(when in-types `(declaim (ftype (function ,in-types (cons boolean ,out-type)),name)))
+     (declaim (ftype (function ,in-types safer-code-return),name))
      (defun ,name ,lambda-list
       (symbol-macrolet ((formal-parameters '(,@lambda-list))
                         (formal-parameter-types '(,@in-types))
@@ -52,8 +64,6 @@
                          (return-from ,name (invoke-restart restart ,@lambda-list e))
                         ;; handlers are invoked as (handler @,function-parameters condition-object)
                          (return-from ,name (safe-function-return nil e))))))) ;
-               ;;;;
-               ;#|
                (when (not (null formal-parameter-types))
                 (let ((mismatched-parameters
                   (remove nil
@@ -72,8 +82,6 @@
                                          :function-model (list (quote ,name) formal-parameters)
                                          :mismatched-parameters mismatched-parameters)))))
 
-               ;|#
-               ;;;;
                (let ((result (multiple-value-list (progn ,@function-body))))
                 (if (not (typep (first result) (quote ,out-type)))
                   (signal
