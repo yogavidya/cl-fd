@@ -1,37 +1,45 @@
 (defpackage :safer-code/src/function-parameters
   (:use :cl :safer-code/src/conditions :safer-code/src/types)
   (:export 
-   :function-parameter :make-function-parameter
+   :function-parameter 
+   :make-function-parameter 
+   :fp-name 
+   :fp-type 
+   :fp-value-check-function 
+   :fp-value-check-form 
+   :fp-default-value
    :function-parameters-description
-   :function-parameters-required
-   :function-parameters-keyword
-   :function-parameters-optional
-   :function-parameters-rest
-   :function-parameters-add
-   :function-parameters-get-parameter
-   :function-parameters-defun-lambda-list
+   :fpd-required
+   :fpd-keyword
+   :fpd-optional
+   :fpd-rest
+   :fpd-add
+   :fpd-get
+   :fpd-type-list
+   :fpd-lambda-list
+   :fpd-flat-lambda-list
    :function-parameter-check))
 
 (in-package :safer-code/src/function-parameters)
 
 
-(defstruct function-parameter ; (&key (p number (evenp nil) 4)
-  (name 'none :type symbol)
-  (type 'none :type (or symbol list))
-  (value-check-function nil :type (or null function))
-  (value-check-form nil :type T)
-  (default-value nil :type T))
+(defstruct (function-parameter (:conc-name fp-))
+  (name 'none :type symbol :read-only T)
+  (type 'T :type (or symbol list) :read-only T)
+  (value-check-function nil :type (or null function) :read-only T)
+  (value-check-form nil :type T :read-only T)
+  (default-value nil :type T) :read-only T)
 
 (defclass function-parameters-description ()
-  ((required :reader function-parameters-required :type list :initform (list))
-   (keywords :reader function-parameters-keyword :type list :initform (list))
-   (optional :reader function-parameters-optional :type list :initform (list))
-   (rest :reader function-parameters-rest :type list :initform (list))))
+  ((required :reader fpd-required :type list :initform (list))
+   (keywords :reader fpd-keyword :type list :initform (list))
+   (optional :reader fpd-optional :type list :initform (list))
+   (rest :reader fpd-rest :type list :initform (list))))
 
-(defmethod function-parameters-required :around ((desc function-parameters-description))
+(defmethod fpd-required :around ((desc function-parameters-description))
   (reverse (slot-value desc 'required)))
 
-(defmethod function-parameters-add ((what symbol) (desc function-parameters-description) (fp function-parameter))
+(defmethod fpd-add ((what symbol) (desc function-parameters-description) (fp function-parameter))
   (macrolet ((eq-group (group-sym)
                `(equalp (symbol-name what) (symbol-name ,group-sym))))
     (check-type what function-parameter-group)
@@ -45,49 +53,98 @@
      ((eq-group '&rest)
       (push fp (slot-value desc 'rest)))
      (T
-      (error "in function-parameters-add: bad parameter group ~s" what)))
+      (error "in fpd-add: bad parameter group ~s" what)))
     fp))
 
-(defmethod function-parameters-get-parameter ((this function-parameters-description) (p symbol))
+(defmethod fpd-get ((this function-parameters-description) (p symbol))
   (flet ((parameter-name= (fp)
-           (eq p (function-parameter-name fp))))
+           (eq p (fp-name fp))))
     (or 
-     (find-if #'parameter-name= (function-parameters-required this))
-     (find-if #'parameter-name= (function-parameters-optional this))
-     (find-if #'parameter-name= (function-parameters-keyword this))
-     (find-if #'parameter-name= (function-parameters-rest this)))))
+     (find-if #'parameter-name= (fpd-required this))
+     (find-if #'parameter-name= (fpd-optional this))
+     (find-if #'parameter-name= (fpd-keyword this))
+     (find-if #'parameter-name= (fpd-rest this)))))
 
-(defmethod function-parameters-defun-lambda-list ((this function-parameters-description))
+(defmethod fpd-lambda-list ((this function-parameters-description))
   (let ((ll (list)))
-    (dolist (p (function-parameters-required this))
-      (push (function-parameter-name p) ll))
-    (when (function-parameters-optional this)
+    (dolist (p (fpd-required this))
+      (push (fp-name p) ll))
+    (when (fpd-optional this)
       (push '&optional ll)
-      (dolist (p (function-parameters-optional this))
-        (push (function-parameter-name p) ll)))
-    (when (function-parameters-keyword this)
+      (dolist (p (fpd-optional this))
+        (push (fp-name p) ll)))
+    (when (fpd-keyword this)
       (push '&key ll)
-      (dolist (p (function-parameters-keyword this))
-        (push (list (function-parameter-name p) 
-                    (function-parameter-default-value p)) 
+      (dolist (p (fpd-keyword this))
+        (push (list (fp-name p) 
+                    (fp-default-value p)) 
               ll)))
-    (when (function-parameters-rest this)
+    (when (fpd-rest this)
       (push '&rest ll)
-      (dolist (p (function-parameters-rest this))
-        (push (function-parameter-name p) ll)))
+      (dolist (p (fpd-rest this))
+        (push (fp-name p) ll)))
     (reverse ll)))
 
+(defmethod fpd-flat-lambda-list ((this function-parameters-description))
+  "used internally by safe-defun"
+  (mapcar
+   #'(lambda (x) (if (consp x) (first x) x))
+   (delete-if 
+    #'(lambda(token)
+        (member token '(&key &optional &rest)))
+    (fpd-lambda-list this))))
+
+
+(defmethod fpd-type-list ((this function-parameters-description))
+  (let ((ll (fpd-lambda-list this))
+        (result (list)))
+    (dolist (p ll)
+      (cond
+       ((member p '(&key &optional &rest))
+        nil) ; ignore
+       ((atom p)
+        (push 
+         (fp-type 
+          (fpd-get this p))
+         result))
+       ((consp p)
+        (push 
+         (fp-type 
+          (fpd-get this (first p)))
+         result ))
+       (t (error 
+           "fpd-type-list: don't know what to do of ~a" p))))
+    (reverse result)))
+
 (defmethod function-parameter-check ((this function-parameters-description) (p symbol) (v T))
-  (let* ((fp (function-parameters-get-parameter this p))
-         (type-check (when fp (typep v (function-parameter-type fp))))
+  (let* ((fp (fpd-get this p))
+         (type-check (when fp (typep v (fp-type fp))))
          (value-check 
           (cond
            ((and 
              fp 
-             (function-parameter-value-check-function fp))
+             (fp-value-check-function fp))
             (funcall 
-             (function-parameter-value-check-function fp) 
-             v (function-parameter-value-check-form fp)))
+             (fp-value-check-function fp) 
+             v (fp-value-check-form fp)))
            (fp T)
            (T nil))))
-    (format t "type check: ~a, value-check: ~a~%" type-check value-check)))
+    (list 
+     #1=(and type-check value-check)
+     (when (null #1#)
+       (format nil 
+               "~a type check: ~a; value-check: ~a"
+               (fp-name fp)
+               (if (null type-check)
+                   (format nil
+                           "expected: ~a, found: ~a"
+                           (fp-type fp) v)
+                 "OK")
+               (if (null value-check)
+                   (format nil
+                           "(~a ~a ~a) not satisfied by value ~a."
+                           (fp-value-check-function fp) 
+                           v
+                           (eval (fp-value-check-form fp))
+                           v)                 
+                 "OK"))))))
