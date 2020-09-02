@@ -1,5 +1,10 @@
 (defpackage :safer-code/src/safe-defun
-  (:use :cl 
+  (:use 
+		:cl 
+		:lisp-unit
+		:iterate
+		:safer-code/src/utilities
+		:safer-code/src/results
    :safer-code/src/conditions 
    :safer-code/src/types 
    :safer-code/src/function-parameters
@@ -21,14 +26,14 @@
 
 
 (defmacro safe-defun (name lambda-list &rest function-body)
-  (let* ((function-descriptor
+  (let* (($fd
           (make-function-parameters-description lambda-list))
          ($formal-parameters 
-          (fpd-lambda-list function-descriptor))
+          (fpd-lambda-list $fd))
          ($formal-parameters-flat
-          (fpd-flat-lambda-list function-descriptor))
+          (fpd-flat-lambda-list $fd))
          ($formal-parameter-types
-          (fpd-type-list function-descriptor))
+          (fpd-type-list $fd))
          (#1=$return-type (find-if '@return-type-form
                            function-body))
          (#1# (if #1# (second #1#) 'T))
@@ -66,7 +71,7 @@
                                        (let 
                                            ((check-results 
                                              (function-parameter-check 
-                                              ,function-descriptor formal actual)))
+                                              ,$fd formal actual)))
                                          (when (not (first check-results))
                                            (list 
                                             formal 
@@ -93,29 +98,26 @@
                ,(cons 'declare (list (append '(ignore) $formal-parameters-flat)))
                (safe-function-return nil (format nil "~a" error-info))))))))
 
-(declaim (inline safe-function-success))
-(defun safe-function-success (result)
-  (car result))
+(define-test safe-defun
+	(safe-defun temp () "Hello")
+	(assert-true (consp #1=(temp)))
+	(assert-true (first #1#))
+	(assert-equalp  (caadr #1#) "Hello")
+	(safe-defun temp () (=> string) "Hello-Typed")
+	(assert-true (consp #1#))
+	(assert-true (first #1#))
+	(assert-equalp  (caadr #1#) "Hello-Typed")
+	(safe-defun temp ( a ) a)
+	(assert-true (consp #2=(temp 42)))
+	(assert-true (first #2#))
+	(assert-eq 42 (caadr #2#))
+	)
+(setf *print-errors* T)
+(setf *print-failures* T)
+(let 
+		((test-results (run-tests '(safe-defun))))
+	(print-errors test-results *error-output*))
 
-(declaim (inline safe-function-value-multiple))
-(defun safe-function-value-multiple (result)
-  (> (length (cdr result)) 1))
+(macroexpand-to-file '(safe-defun temp ( a ) a))
 
-(declaim (inline safe-function-value))
-(defun safe-function-value (result)
-  (if (and (safe-function-success result)
-           (safe-function-value-multiple result))
-      (first (cdr result))
-    (first (cdr result))))
-
-(declaim (inline safe-function-extra-values))
-(defun safe-function-extra-values (result)
-  (if (and (safe-function-success result)
-           (safe-function-value-multiple result))
-      (cdr (cdr result))
-    (error "No multiple values")))
-
-(declaim (inline safe-function-return))
-(defun safe-function-return (success result)
-  (list success result))
 

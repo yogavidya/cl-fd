@@ -5,5 +5,5 @@
   :licence "Public Domain"
   :class :package-inferred-system
   :defsystem-depends-on ("asdf-package-system")
-  :depends-on ("safer-code/safer-code")
+  :depends-on ("lisp-unit" "iterate" "safer-code/safer-code")
   :components ((:file "safer-code")))
