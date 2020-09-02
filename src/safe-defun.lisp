@@ -43,7 +43,7 @@
          (body (delete-if '@return-type-form body))
          (body (delete-if '@restarts-form body))) ; no need to optimize
     (fmakunbound name)
-    ;(declaim (ftype (function ,in-types safer-code-return),name))
+    ;(declam (ftype (function ,in-types safer-code-return),name))
     `(defun ,name ,$formal-parameters
          (symbol-macrolet ((formal-parameters '(,@$formal-parameters))
                            (formal-parameter-types '(,@$formal-parameter-types))
@@ -64,10 +64,10 @@
                    (let 
                        ((mismatched-parameters
                          (remove nil
-                                 (loop for formal in formal-parameters 
-                                       and actual in actual-parameters
-                                       and formal-type in formal-parameter-types
-                                       collect
+                                 (iter (for formal in formal-parameters) 
+                                       (for actual in actual-parameters)
+                                       (for formal-type in formal-parameter-types)
+                                       (collect
                                        (let 
                                            ((check-results 
                                              (function-parameter-check 
@@ -77,7 +77,7 @@
                                             formal 
                                             formal-type 
                                             actual 
-                                            (type-of actual))))))))
+                                            (type-of actual)))))))))
                      (when mismatched-parameters
                        (signal (make-condition 'arguments-type-error
                                                :function-model (list (quote ,name) formal-parameters)
@@ -111,6 +111,12 @@
 	(assert-true (consp #2=(temp 42)))
 	(assert-true (first #2#))
 	(assert-eq 42 (caadr #2#))
+	(safe-defun temp ( (a string) ) (=> string) a)
+	(assert-true (consp #3=(temp 42)))
+	(assert-false (first #3#))
+	(assert-true (consp #4=(temp "pippo")))
+	(assert-true (first #4#))
+	(assert-equalp "pippo" (caadr #4#))
 	)
 (setf *print-errors* T)
 (setf *print-failures* T)
