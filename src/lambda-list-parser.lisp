@@ -12,10 +12,10 @@
         (setf current (nth index arglist))
         (cond
          ((and (listp current) (> (length current) 4))
-          (error "lambda list entry ~a has length > 3" current))
+          (error "lambda list entry ~a has length > 4" current))
          ((and (listp current) (= (length current) 4))
           (when (or (not (listp #1=(third current)))
-                    (or
+                    (and (not (null #1#))
                      (not (functionp (ignore-errors (symbol-function (first #1#)))))))
             (error
              (format nil "in parameter ~a, specializer ~a should be (check-function form)"

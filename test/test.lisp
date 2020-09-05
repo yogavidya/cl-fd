@@ -40,30 +40,30 @@
 
 (remove-tests :all :safer-code/test)
 
-(defun safe-defun-test-1 ()
-  (test-safe-defun 01-safe-defun-empty 
+(defun safe-defun-test-01 ()
+  (test-safe-defun 01-safe-defun/empty 
                    :lambda-list () 
                    :args nil 
                    :xtra-tests ((assert-equalp  (car (safe-function-value *result*)) "Hello")) 
                    :body ("Hello")))
 
-(defun safe-defun-test-2 ()
-  (test-safe-defun 02-safe-defun-returning-typed-string 
+(defun safe-defun-test-02 ()
+  (test-safe-defun 02-safe-defun/returning-typed-string 
                    :lambda-list () 
                    :args  nil 
                    :xtra-tests ((assert-equalp  (car (safe-function-value *result*)) "Hello")) 
                    :body((=> string)
                          "Hello")))
 
-(defun safe-defun-test-3 ()
-  (test-safe-defun 03-safe-defun-identity 
+(defun safe-defun-test-03 ()
+  (test-safe-defun 03-safe-defun/identity 
                    :lambda-list (a) 
                    :args (42) 
                    :xtra-tests ((assert-eq  (car (safe-function-value *result*)) 42)) 
                    :body (a)))
 
-(defun safe-defun-test-4 ()
-  (test-safe-defun 04-safe-defun-typed-args-mismatch 
+(defun safe-defun-test-04 ()
+  (test-safe-defun 04-safe-defun/typed-args-mismatch/errortest 
                    :lambda-list ( (a string) )
                    :args (42) 
                    :expected-fail T
@@ -71,16 +71,16 @@
                    :body ((=> string) 
                           a)))
 
-(defun safe-defun-test-5 ()
-  (test-safe-defun 05-safe-defun-typed-fixed-return
+(defun safe-defun-test-05 ()
+  (test-safe-defun 05-safe-defun/typed-arg/typed-return
                    :lambda-list ( (a string) )
                    :args ("pippo") 
                    :xtra-tests ((assert-equalp "pippo" (first (safe-function-value *result*))))
                    :body ((=> string) 
                           a)))
 
-(defun safe-defun-test-6 ()
-  (test-safe-defun 06-safe-defun-typed-arg-return-mismatch
+(defun safe-defun-test-06 ()
+  (test-safe-defun 06-safe-defun/typed-arg/return-mismatch/errortest
                    :lambda-list  ( (a string) )  
                    :args ("pippo")
                    :expected-fail T
@@ -88,6 +88,47 @@
                    :body ((=> number) 
                           a)))
 
+(defun safe-defun-test-07 ()
+  (test-safe-defun 07-safe-defun-keyword-arg-identity
+                   :lambda-list    ( (&key a)) 
+                   :args ( :a "pippo")
+                   :xtra-tests ((assert-equalp (first (safe-function-value *result*)) "pippo"))
+                   :body (a)))
+
+(defun safe-defun-test-08 ()
+  (test-safe-defun 08-safe-defun/keyword-typed-arg
+                   :lambda-list    ( (&key ( a string))) 
+                   :args ( :a "pippo")
+                   :xtra-tests ((assert-equalp (first (safe-function-value *result*)) "pippo"))
+                   :body (a)))
+
+(defun safe-defun-test-09 ()
+  (test-safe-defun 09-safe-defun/keyword-arg-default
+                   :lambda-list    ((&key (a string nil "pippo"))) 
+                   :args ()
+                   :xtra-tests ((assert-equalp (first (safe-function-value *result*)) "pippo"))
+                   :body (a)))
+
+(defun safe-defun-test-10 ()
+  (test-safe-defun 10-safe-defun/keyword-typed-arg/null-arg-value-check/arg-default
+                   :lambda-list    ((&key (a string nil "pippo"))) 
+                   :args ()
+                   :xtra-tests ((assert-equalp (first (safe-function-value *result*)) "pippo"))
+                   :body (a)))
+
+(defun safe-defun-test-11 ()
+  (test-safe-defun 11-safe-defun/keyword-typed-arg/function-arg-value-check/arg-default
+                   :lambda-list    ((&key (a fixnum (evenp) 2))) 
+                   :args ()
+                   :xtra-tests ((assert-equalp (first (safe-function-value *result*)) 2))
+                   :body (a)))
+#|
+ Nota a me stesso:
+il test 11 fallisce perché la funzione restituisce una condizione.
+Tema: il velore (second) del safer-code-return dovrebbe sempre essere una lista?
+Come gestire la lettura del valore restituito?
+Pensaci, Salvatorino!
+|#
 
 (defun collect-safe-defun-test-generators ()
   (let ((flist (list)))
@@ -96,35 +137,17 @@
       (loop
        (multiple-value-bind (more? symbol) (next-symbol)
          (if more?
-             (when (and (> (length #2=(symbol-name symbol)) #3=(length #4="SAFE-DEFUN-TEST-")) (equalp #4#  (subseq #2# 0 #3#)))
+             (when (and 
+                    (> (length #2=(symbol-name symbol)) 
+                       #3=(length #4="SAFE-DEFUN-TEST-")) 
+                    (equalp #4#  (subseq #2# 0 #3#)))
                (push symbol flist))
            (return)))))
     (reverse flist)))
 
 (defun define-safe-defun-tests ()
   (dolist (f (collect-safe-defun-test-generators))
-    (funcall f)))
-#|
-      (safe-defun temp (&key a) a)
-      (setf #1# (temp :a "pippo-key"))
-      (assert-true (consp #1#))
-      (assert-true (first #1#))
-      (assert-equalp (caadr #1#) "pippo-key")
-      (safe-defun temp (&key (a string)) a)
-      (setf #1# (temp :a "pippo-key-typed"))
-      (assert-true (consp #1#))
-      (assert-true (first #1#))
-      (assert-equalp (caadr #1#) "pippo-key-typed")
-        ;(safe-defun temp (&key (a string "pippo-key-typed-default")))
-        ;(setf #1# (temp))
-        ;(assert-true (consp #1#))
-      (test-safe-defun safe-defun-typed-keyword-with-default
-                       :lambda-list (&key (a string "pippo-key-typed-default"))
-                       :args nil
-                       :body (a))
-      ;(assert-equalp (safe-function-return #1#) "pippo-key-typed-default")
-|#
-     
+    (funcall f)))     
 
 (defun define-all-tests ()
   (define-safe-defun-tests))
