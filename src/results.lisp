@@ -12,20 +12,20 @@
 
 (declaim (inline safe-function-value-multiple))
 (defun safe-function-value-multiple (result)
-  (> (length (cdr result)) 1))
+  (consp (second result)))
 
 (declaim (inline safe-function-value))
 (defun safe-function-value (result)
   (if (and (safe-function-success result)
            (safe-function-value-multiple result))
-      (first (cdr result))
-    (first (cdr result))))
+      (first (second result))
+    (second result)))
 
 (declaim (inline safe-function-extra-values))
 (defun safe-function-extra-values (result)
   (if (and (safe-function-success result)
            (safe-function-value-multiple result))
-      (cdr (cdr result))
+      (rest (second result))
     (error "No multiple values")))
 
 (declaim (inline safe-function-return))
