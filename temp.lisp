@@ -1,4 +1,4 @@
-;( (a string (check-fn check-form)) )
+					;( (a string (check-fn check-form)) )
 ;;; => (&key (a string :check check-fn :default [default]))
 
 
@@ -8,8 +8,8 @@
 (defun extra-sub-lambda-lists-positions (ll &optional (start 0))
   (let ((found 
           (position-if 
-                       (lambda (x) (member x '(&key &optional &rest)))
-                       ll :start start)))
+	   (lambda (x) (member x '(&key &optional &rest)))
+	   ll :start start)))
     (when found (cons found (extra-sub-lambda-lists-positions ll (1+ found))))))
 
 (defun extra-sub-lambda-list (ll)
@@ -30,7 +30,7 @@
 
 
 (defun make-parameter-descriptor (p)
-  ; SYM | (SYM [TYPE] [CHECK-FN | (CHECK-FN CHECK-FORM)] [DEFAULT])
+;; SYM | (SYM [TYPE] [CHECK-FN | (CHECK-FN CHECK-FORM)] [DEFAULT])
   (assert (or (atom p) (and (listp p) (>= #1=(length p) 1) (<= #1# 4))))
   (let* ((p-structured (not (atom p)))
          (p-len (if p-structured (length p) 1))
@@ -60,7 +60,7 @@
         (:check-type (subtypep (type-of request-arg) p-type ))
         (:validate (ignore-errors 
 		    (cond
-		      ((not p-validated-p) nil)
+		      ((not p-validated-p) T)
 		      (p-validated-structured-p 
 		       (funcall p-validate-fn request-arg p-validate-parameter))
 		      (T (funcall p-validate-fn request-arg)))))
@@ -72,7 +72,7 @@
 	   (push p-validate-fn-sym vo)
 	   (and p-validate-fn-sym vo)))
         (otherwise 
-          (error "Unknown request to parameter descriptor: ~a ~a" request request-arg))))))
+	 (error "Unknown request to parameter descriptor: ~a ~a" request request-arg))))))
 
 (defun parse-sub-lambda-list (sub-ll)
   (mapcar #'make-parameter-descriptor sub-ll))
@@ -102,38 +102,40 @@
                parameter-descriptors 
                (cadr parameter-descriptors))))
     (mapcar
-      (lambda (p) (funcall p :name))
-      pd-list)))
+     (lambda (p) (funcall p :name))
+     pd-list)))
 
 (defun valid-return-type-specification (exp)
   (and
-    (consp exp)
-    (= (length exp) 2)
-    (eq (first exp) :function-return-type)))
+   (consp exp)
+   (= (length exp) 2)
+   (eq (first exp) :function-return-type)))
 
 (defun valid-restarts-specification (exp parameter-symbols)
   (and
-    (consp exp)
-    (>= (length exp) 2)
-    (eq (first exp) :function-restarts)
-    (iter check-restarts-syntax 
-          (for r in (rest exp)) 
-          (when 
-            (not (ignore-errors (subtypep (first r) 'condition))) 
-            (error "invalid condition type in restart: ~a" (first r)))
-          (when (not (= (length (second r)) (1+ (length parameter-symbols))))  
-            (error "restart for condition ~a must have exactly this lambda list: ~a"
-                   (first r)
-                   (destructuring-bind 
-                     ((&rest args) condition) 
-                     (list parameter-symbols 'condition-instance) 
-                     `(,@args ,condition))))
-          (finally (return-from check-restarts-syntax T)))))
+   (consp exp)
+   (>= (length exp) 2)
+   (eq (first exp) :function-restarts)
+   (iter check-restarts-syntax 
+     (for r in (rest exp)) 
+     (when 
+	 (not (ignore-errors (subtypep (first r) 'condition))) 
+       (error "invalid condition type in restart: ~a" (first r)))
+     (when (not (= (length (second r)) (1+ (length parameter-symbols))))  
+       (error "restart for condition ~a must have exactly this lambda list: ~a"
+	      (first r)
+	      (destructuring-bind 
+		  ((&rest args) condition) 
+		  (list parameter-symbols 'condition-instance) 
+		`(,@args ,condition))))
+     (finally (return-from check-restarts-syntax T)))))
 
 (declaim (inline count-if-true))
 (defun count-if-true (x)
   (if x 1 0))
 
+(defmacro @self (request &optional request-arg)
+  `(apply this (list  this ,request ,request-arg)))
 
 (defmacro make-function-descriptor (name lambda-list &body body)
   `(let* ((name ',name)
@@ -150,10 +152,10 @@
                      (keyword-parameters . &key)
                      (rest-parameter . &rest)))
               (collect
-                `(,sym
-                   (when (eq (parameter-descriptor-list-type (second parameter-sets)) 
-                             ',pd-type)
-                     (parameter-names-from-descriptor-list 
+		  `(,sym
+		    (when (eq (parameter-descriptor-list-type (second parameter-sets)) 
+			      ',pd-type)
+		      (parameter-names-from-descriptor-list 
                        (second parameter-sets))))))
           (xtra-parameters ; list of symbols for non-required parameters 
             (first (delete-if #'null 
@@ -161,25 +163,25 @@
           (xtra-type ; keyword for non-required parameters (&optional | &key | &rest)
             (when xtra-parameters 
               (cdr 
-                (first 
-                  (delete-if 
-                             (lambda (x) (null (car x)))
-                             (list (cons keyword-parameters  '&key)
-                                   (cons optional-parameters '&optional)
-                                   (cons rest-parameter '&rest)))))))
+	       (first 
+		(delete-if 
+		 (lambda (x) (null (car x)))
+		 (list (cons keyword-parameters  '&key)
+		       (cons optional-parameters '&optional)
+		       (cons rest-parameter '&rest)))))))
           (flat-parameters-list (append required-parameters xtra-parameters)) ; all parameter symbols
           (ansi-lambda-list ; the lambda list to be consumed by DEFUN 
             (let ((result (list)))
               (iter (for p in (first parameter-sets))
-                    (push (funcall p :name) result))
+		(push (funcall p :name) result))
               (and xtra-type
                    (push xtra-type result)
                    (iter (for p in (cadr (second parameter-sets)))
-                         (if (eq xtra-type '&optional)
-                             (push #1=(funcall p :name) result)
-                             (if #2=(funcall p :default)
-                                 (push (list #1# #2#) result)
-                                 (push #1# result)))))
+		     (if (eq xtra-type '&optional)
+			 (push #1=(funcall p :name) result)
+			 (if #2=(funcall p :default)
+			     (push (list #1# #2#) result)
+			     (push #1# result)))))
               (reverse result)))
           (original-body '(,@body)) ; the BODY argument to make-function-descriptor
           (documentation-strings  
@@ -190,30 +192,31 @@
               (when (stringp (first (nthcdr i original-body)))
                 (collect (first (nthcdr i original-body))))))
           (return-type
-           ; NIL means unspecified, ie 'T
+					; NIL means unspecified, ie 'T
             (let 
-              ((first-form 
-                 (first (nthcdr (length documentation-strings) original-body)))) 
+		((first-form 
+		   (first (nthcdr (length documentation-strings) original-body)))) 
               (when (valid-return-type-specification first-form)
                 (second first-form))))
           (restarts (let
-                      ((first-form (first (nthcdr (+ (length documentation-strings) (if return-type 1 0)) original-body))))
+			((first-form (first (nthcdr (+ (length documentation-strings) (if return-type 1 0)) original-body))))
                       (when 
-                        (valid-restarts-specification first-form flat-parameters-list)
+			  (valid-restarts-specification first-form flat-parameters-list)
                         (rest first-form))))
           (body 
             (nthcdr 
-              (+ (count-if-true return-type) 
-                 (count-if-true restarts) 
-                 (length documentation-strings)) 
-              original-body))
+	     (+ (count-if-true return-type) 
+		(count-if-true restarts) 
+		(length documentation-strings)) 
+	     original-body))
 	  (closure 
 	    (lambda (this request &optional request-arg)
 	      (case request
 		(:help 
 		 '(:name :ansi-lambda-list :parameter-symbols :parameter-descriptors-required
-		   :parameter-descriptors-xtra :parameter-descriptors-all :return-type
-		   :body :restarts :apply-all-parameters :query))
+		   :parameter-descriptors-xtra :parameter-descriptors-all 
+		   :symbol-parameter-descriptor :return-type
+		   :body :restarts :apply-parameter :apply-all-parameters :query))
 		(:name name)
 		(:ansi-lambda-list ansi-lambda-list)
 		(:parameter-symbols flat-parameters-list)
@@ -224,35 +227,32 @@
 		 (append (car parameter-sets) (cadadr parameter-sets)))
 		(:symbol-parameter-descriptor
 		 (find-if 
-		      (lambda (pd) 
-			(eq request-arg (funcall pd :name))) 
-		      (apply this (list this :parameter-descriptors-all))))
+		  (lambda (pd) 
+		    (eq request-arg (funcall pd :name))) 
+		  (apply this (list this :parameter-descriptors-all))))
 		(:return-type (if return-type return-type 'T))
 		(:body body)
 		(:restarts restarts)
 		(:apply-parameter ; (sym pd-request [pd-request-arg])
 		 (let 
-		     ((pd 
-			(apply this (list this :symbol-parameter-descriptor (first request-arg))))) 
+		     ((pd (@self :symbol-parameter-descriptor (first request-arg)))) 
 		   (if pd
 		       (funcall pd (second request-arg) (third request-arg))
 		       (error "Invalid parameter ~a: should be in ~a"
 			      (first request-arg)
 			      ansi-lambda-list))))
-		(:apply-all-parameters ;(sym pd-request [IMPLICIT actual parameter for sym]
-		 (iter outer (with result = (list))
-		   (for entry in parameter-sets)
-		   (let ((pd-list (or (and (symbolp (car entry)) (second entry)) entry)))
-		     (iter inner
-		       (for pd in (in outer pd-list))
-		       (push
-			(and (in inner pd)
-			     (list 
-			      (funcall (in inner pd) :name)
-			      (funcall  (in inner pd) 
-					(car request-arg) 
-					(cadr request-arg)))) result)))
-		   (finally (return-from outer (remove-if #'null (reverse result))))))
+		(:apply-all-parameters ;(sym pd-request [request-arglist]
+                 (let* ((pd-list (@self :parameter-descriptors-all))
+                        (arglist (second request-arg))
+                        (request (first request-arg)))
+		 (iter (for i from 0 below (length pd-list))
+		   (let ((p-name (funcall (nth i pd-list) :name)))
+		     (collect 
+                      (cons p-name 
+                            (funcall 
+                             (nth i pd-list) 
+                             request 
+                             (nth i arglist))))))))
 		(:query
 		 (reverse (pairlis
 			   (list :name
@@ -311,20 +311,78 @@
                      #1=(type-error-datum condition)
                      (type-of #1#)))))
 
-(define-condition arguments-type-error (error)
+(defun check-mismatched-argument (e)
+  (and (= (length e) 3)
+       (symbolp (first e))
+       (symbolp (second e))))
+(deftype mismatched-argument ()
+  `(and
+    (cons)
+    (satisfies check-mismatched-argument)))
+(defun mismatched-argument-name (e)
+  (first e))
+(defun mismatched-argument-type (e)
+  (second e))
+(defun mismatched-argument-value (e)
+  (third e))
+
+(defun check-invalid-argument (e)
+  (and (= (length e) 3)
+       (symbolp (first e))
+       (consp #1=(second e))
+       (or
+        (= #2=(length #1#) 2)
+        (= #2# 3))
+       (not (null (first #1#)))))
+(deftype invalid-argument ()
+  `(and
+    (cons)
+    (satisfies check-invalid-argument)))
+(defun invalid-argument-name (e)
+  (first e))
+(defun invalid-argument-op (e)
+  (second e))
+(defun invalid-argument-value (e)
+  (third e))
+
+
+(define-condition arguments-check-error (error)
   ((mismatched-parameters
-     :accessor mismatched-parameters
-     :initarg :mismatched-parameters
-     :type cons)
+    :accessor mismatched-parameters
+    :initarg :mismatched-parameters
+    :type (cons mismatched-argument))
+   (invalid-parameters
+    :accessor invalid-parameters
+    :initarg :invalid-parameters
+    :type (cons invalid-argument))
    (function-model
-     :accessor function-model
-     :initarg :function-model
-     :type cons))
+    :accessor function-model
+    :initarg :function-model
+    :type cons))
   (:report (lambda (condition stream)
-             (format stream
-                     "Argument type check failed in ~a: ~:{~%* ~a: (~a): found ~a, which is a ~a~}"
-                     (function-model condition)
-                     (mismatched-parameters condition)))))
+             (print
+             (with-output-to-string (s)
+               (format t "Failed checks for function ~a:~%~{~a~}~{~a~}"
+                       (function-model condition)
+                       (if #1=(mismatched-parameters condition)
+                         (iter (for c in #1#)
+                           (collect 
+                            (format nil "TYPE: PARAMETER ~a EXPECTED ~a BUT FOUND ~a (~a)~%"
+                                    (mismatched-argument-name c)
+                                    (mismatched-argument-type c)
+                                    #2=(mismatched-argument-value c)
+                                    (type-of #2#))))
+                         nil)
+                       (if #3=(invalid-parameters condition)
+                         (iter (for c in #3#)
+                           (collect 
+                            (format nil "INVALID: ~a~%"
+                                    (invalid-argument-op c))))
+                         nil))
+               (format nil "~a" s))
+             stream))))
+                       
+
 
 ;; (in-package :safer-code/src/results)
 
@@ -361,59 +419,102 @@
 (defmacro @instantiate-function-descriptor (fd &key name as-lambda)
   (when (and name as-lambda)
     (error "keywords :NAME and :AS-LAMBDA are mutually exclusive."))
-  (let ((block-name (gensym "BLOCK")))
-  `(progn
-     (or (when ',name (fmakunbound ',name))
-         (when (null ',as-lambda) (fmakunbound ',(funcall (symbol-value fd) :name)))) 
-     (,@(cond
-          (as-lambda '(lambda))
-          (name (list 'defun name))
-          (T (list 'defun (funcall (symbol-value fd) :name))))
-       ,(funcall (symbol-value fd) :ansi-lambda-list)
-       (symbol-macrolet 
-           ((formal-parameters '(,@(funcall (symbol-value fd) :parameter-symbols)))
-            (actual-parameters (list ,@(funcall (symbol-value fd) :parameter-symbols))))
-         (block ,block-name
-         (restart-case
-           (handler-bind
-             ((condition
-                #'(lambda(e)
-                    (let
-                      ((restart (find-restart
-                                  (type-of e))))
-                      (push (list (quote ,name) e) *conditions*)
-                      (if restart
-                          (return-from ,block-name 
-                                       (invoke-restart restart formal-parameters e))
-                          ;; handlers are invoked as (handler @,function-parameters condition-object)
-                          (return-from ,block-name (safe-function-return nil e))))))) ; TODO
-             (when (not (null formal-parameters))
-               (let 
-                 ((bad-parameters nil)) ;TODO
-                 (when bad-parameters
-                   (signal (make-condition 'arguments-type-error
-                                           :function-model (list (quote ,name) formal-parameters)
-                                           :bad-parameters bad-parameters)))))
+  (let ((block-name (gensym "BLOCK"))
+        (function-name 
+         (cond
+          (as-lambda 'lambda)
+          (name name)
+          (T (funcall (symbol-value fd) :name)))))
+    `(progn
+       (when (null ,as-lambda) (fmakunbound ',function-name))
+       (,@(if
+              as-lambda '(lambda)
+	    (list 'defun function-name))
+	,(funcall (symbol-value fd) :ansi-lambda-list)
+	(symbol-macrolet 
+	    ((formal-parameters '(,@(funcall (symbol-value fd) :parameter-symbols)))
+	     (actual-parameters (list ,@(funcall (symbol-value fd) :parameter-symbols))))
+	  (block ,block-name
+	    (restart-case
+		(handler-bind
+		    ((condition
+		       #'(lambda(e)
+			   (let
+			       ((restart (find-restart
+					  (type-of e))))
+			     (push (list (quote ,name) e) *conditions*)
+			     (if restart
+				 (return-from ,block-name 
+				   (invoke-restart restart formal-parameters e))
+				 ;; handlers are invoked as (handler @,function-parameters condition-object)
+				 (return-from ,block-name (safe-function-return nil e))))))) ; TODO
+		  (when (not (null formal-parameters))
+		    (let* 
+			((type-checks 
+                          (apply ,fd 
+                                 (list :apply-all-parameters 
+                                       (list :check-type actual-parameters))))
+                         (validate-checks 
+                          (apply ,fd 
+                                 (list :apply-all-parameters 
+                                       (list :validate actual-parameters))))
+                         (type-errors 
+                          (alexandria:flatten 
+                           (remove-if (lambda (x) (cdr x)) type-checks)))
+                         (validate-errors
+                          (alexandria:flatten
+                          (remove-if (lambda (x) (cdr x)) validate-checks)))
+                         (bad-parameters (union type-errors validate-errors)))
+		      (when bad-parameters
+			(signal 
+                         (make-condition 
+                          'arguments-check-error
+                          :function-model 
+                          (list (quote ,function-name) formal-parameters)
+                          :mismatched-parameters 
+                          (iter (for p in type-errors)
+				(let ((pd (funcall ,fd :symbol-parameter-descriptor p)))
+				  (collect (list p (funcall pd :type) 
+                                                 (nth 
+                                                  (position p formal-parameters) 
+                                                  actual-parameters)))))
+			  :invalid-parameters
+                          (iter (for p in validate-errors)
+				(let ((pd (apply ,fd
+                                                 (list :symbol-parameter-descriptor p))))
+				  (collect 
+                                   (list p 
+                                         (funcall pd :describe-validate-op)
+                                         (nth 
+                                                  (position p formal-parameters) 
+                                                  actual-parameters))))))))))
+			  
 
-             (let ((result (multiple-value-list (progn ,@(funcall (symbol-value fd) :body)))))
-               (if (not (typep (first result) (quote ,(funcall (symbol-value fd) :return-type))))
-                   (signal
-                     (make-condition 'return-type-error
-                                     :expected-type (quote ,(funcall (symbol-value fd) :return-type))
-                                     :datum (first result))))
-               (safe-function-return T result)))
-           ,@(funcall (symbol-value fd) :restarts)
-           (arguments-type-error (formal-parameters-flat error-info)
-             ,(cons 'declare (list (append '(ignore) (funcall (symbol-value fd) :parameter-symbols))))
-             (safe-function-return nil error-info))
-           (return-type-error (,@(funcall (symbol-value fd) :parameter-symbols) error-info)
-                              ,(cons 'declare (list (append '(ignore) (funcall (symbol-value fd) :parameter-symbols))))
-                              (safe-function-return nil error-info)))))))))
+		  (let ((result (multiple-value-list (progn ,@(funcall (symbol-value fd) :body)))))
+		    (if (not (typep (first result) (quote ,(funcall (symbol-value fd) :return-type))))
+			(signal
+			 (make-condition 'return-type-error
+					 :expected-type (quote ,(funcall (symbol-value fd) :return-type))
+					 :datum (first result))))
+		    (safe-function-return T result)))
+	      ,@(funcall (symbol-value fd) :restarts)
+	      (arguments-type-error (formal-parameters-flat error-info)
+		,(cons 'declare (list (append '(ignore) (funcall (symbol-value fd) :parameter-symbols))))
+		(safe-function-return nil error-info))
+	      (return-type-error (formal-parameters-flat error-info)
+		,(cons 'declare (list (append '(ignore) (funcall (symbol-value fd) :parameter-symbols))))
+		(safe-function-return nil error-info)))))))))
 
 
 
 (defmacro test ()
-  `(progn
-     (defparameter *fd* (make-function-descriptor temp (a b &key (c number (< 10) 3)) (pprint (list a b c)))))
-  )
+  `(progn 
+     (defparameter *fd* 
+       (make-function-descriptor temp 
+           ((a string) &key (b number (< 10) 3)) 
+         (:function-return-type string)
+         (format nil "~a" (list a b)))) 
+     (@instantiate-function-descriptor *fd*) 
+     (defparameter *a* (temp "pippo" :b 3)) 
+     (format t "~a" (second *a*))))
 
