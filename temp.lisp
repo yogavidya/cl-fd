@@ -146,9 +146,8 @@
           (parameter-sets (parse-lambda-list original-lambda-list)) ;all parameter descriptors
           (required-parameters 
             (parameter-names-from-descriptor-list  (first parameter-sets)))
-          ;; next block generates lists for parameter symbols, like
-          ;; the previous required-parameters.
-          ;; bindings: optional-parameters, keyword-parameters, rest-parameter
+          ;; next block generates bindings for lists for extra parameter symbols
+          ;; symbols: optional-parameters, keyword-parameters, rest-parameter
           ,@(iter 
               (for (sym . pd-type) in
                    '((optional-parameters . &optional)
@@ -233,6 +232,7 @@
 		  (lambda (pd) 
 		    (eq request-arg (funcall pd :name))) 
 		  (apply this (list this :parameter-descriptors-all))))
+                (:function-model (list name ansi-lambda-list))
 		(:return-type (if return-type return-type 'T))
 		(:body body)
 		(:restarts restarts)
@@ -257,7 +257,8 @@
                              request 
                              (nth i arglist))))))))
 		(:documentation 
-		 (format nil "~{~a~%~}" documentation-strings))
+		 (let ((s (format nil "~{~a~%~}" documentation-strings)))
+                   (subseq s 0 (1- (length s)))))
 		(:query
 		 (reverse (pairlis
 			   (list :name
@@ -309,9 +310,13 @@
 (defparameter *conditions* (list))
 
 (define-condition return-type-error (type-error)
-  ()
+  ((function-model
+    :accessor function-model
+    :initarg :function-model
+    :type cons))
   (:report (lambda (condition stream)
-             (format stream "Return type mismatch: expected type ~a, but found ~a, which is a ~a."
+             (format stream "Return type mismatch for ~a: expected type ~a, but found ~a, which is a ~a."
+                     (function-model condition)
                      (type-error-expected-type condition)
                      #1=(type-error-datum condition)
                      (type-of #1#)))))
@@ -436,6 +441,7 @@
               as-lambda '(lambda)
 	    (list 'defun function-name))
 	,(funcall (symbol-value fd) :ansi-lambda-list)
+        ,(funcall (symbol-value fd) :documentation)
         (block ,block-name
           (restart-case
               (handler-bind
@@ -472,7 +478,7 @@
                        (make-condition 
                         'arguments-check-error
                         :function-model 
-                        (list (quote ,function-name) '(#1#))
+                        '(,@(funcall (symbol-value fd) :function-model))
                         :mismatched-parameters 
                         (iter (for p in type-errors)
                           (let ((pd (funcall ,fd :symbol-parameter-descriptor p))
@@ -495,6 +501,7 @@
                   (if (not (typep (first result) (quote ,(funcall (symbol-value fd) :return-type))))
                       (signal
                        (make-condition 'return-type-error
+                                       :function-model '(,@(funcall (symbol-value fd) :function-model))
                                        :expected-type (quote ,(funcall (symbol-value fd) :return-type))
                                        :datum (first result))))
                   (fd-return T result)))
@@ -512,9 +519,12 @@
   `(progn 
      (defparameter *fd* 
        (make-function-descriptor temp 
-           ((a string) &key (b number (lambda (x) (< x 10)) 3)) 
-         (:function-return-type string)
-         (format nil "~a" (list a b))))
+           ((a number) &key (b number (lambda (x) (< x 10)) 3))
+         "This is a function of two arguments, A and B"
+         "returning printed A / B"
+         (:function-return-type number)
+         (:function-restarts (division-by-zero (a b condition) (temp a :b 1)))
+         (format nil "~a" (/ a b))))
      (let ((fn
             (@instantiate-function-descriptor *fd*))) 
        (defparameter *a* (temp ,a :b ,b)) 
