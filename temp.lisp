@@ -68,8 +68,6 @@
 		      (T (funcall p-validate-fn request-arg)))))
         (:describe-validate-op
          (let ((vo (list 'FOR 'PARAMETER p-name '= request-arg)))
-           ;; 
-           ;;
 	   (if p-validated-structured-p
 	     (push p-validate-fn-input vo)
              (push `(,p-validate-fn-input ,p-name) vo))
@@ -140,6 +138,15 @@
 (defmacro @self (request &optional request-arg)
   `(apply this (list  this ,request ,request-arg)))
 
+(defun list-head-if (l test)
+  (labels 
+      ((rec (l) 
+         (if (funcall test (car l)) 
+             (cons (car l) (rec (rest l))) 
+           nil))) 
+    (rec l)))
+
+
 (defmacro make-function-descriptor (name lambda-list &body body)
   `(let* ((name ',name)
           (original-lambda-list ',lambda-list)
@@ -186,39 +193,52 @@
 			     (push #1# result)))))
               (reverse result)))
           (original-body '(,@body)) ; the BODY argument to make-function-descriptor
-          (documentation-strings  
-            (iter  
-              (while (<= i (length original-body)))
-              (generate i upfrom 0)
-              (next i)
-              (when (stringp (first (nthcdr i original-body)))
-                (collect (first (nthcdr i original-body))))))
-          (return-type
-					; NIL means unspecified, ie 'T
-            (let 
-		((first-form 
-		   (first (nthcdr (length documentation-strings) original-body)))) 
-              (when (valid-return-type-specification first-form)
-                (second first-form))))
-          (restarts (let
-			((first-form (first (nthcdr (+ (length documentation-strings) (if return-type 1 0)) original-body))))
-                      (when 
-			  (valid-restarts-specification first-form flat-parameters-list)
-                        (rest first-form))))
+          (documentation-strings   (list-head-if original-body #'stringp))
+          (meta-forms 
+           (list-head-if 
+            (nthcdr (length documentation-strings) original-body)
+            #'(lambda (f) 
+              (and (consp f)
+                   (member (car f) '(:function-restarts :function-return-type))))))
+          (return-type (let ((rf (find-if #'(lambda (f) (eq (car f) :function-return-type)) meta-forms)))
+                         (or
+                          (and (valid-return-type-specification rf)
+                               (rest rf))
+                          T)))
+          (restarts (let ((rf (find-if #'(lambda (f) (eq (car f) :function-restarts)) meta-forms)))
+                      (and (valid-restarts-specification rf flat-parameters-list)
+                           (rest rf))))
           (body 
             (nthcdr 
-	     (+ (count-if-true return-type) 
-		(count-if-true restarts) 
+	     (+ (length meta-forms) 
 		(length documentation-strings)) 
 	     original-body))
+          (request-list
+           '(:help
+             :name 
+             :ansi-lambda-list 
+             :parameter-symbols 
+             :parameter-descriptors-required
+             :parameter-descriptors-xtra 
+             :parameter-descriptors-all 
+             :symbol-parameter-descriptor 
+             :function-model
+             :return-type
+             :body 
+             :restarts 
+             (:apply-parameter 
+              (SYMBOL PARAMETER-DESCRIPTOR-REQUEST [ARGUMENT])) 
+             (:apply-all-parameters
+              (PARAMETER-DESCRIPTOR-REQUEST [ARGUMENT LIST])) 
+             :documentation 
+             :query))
+          (query-ht 
+           (let ((qht (make-hash-table :test 'eq)))
+             qht))
 	  (closure 
 	    (lambda (this request &optional request-arg)
 	      (case request
-		(:help 
-		 '(:name :ansi-lambda-list :parameter-symbols :parameter-descriptors-required
-		   :parameter-descriptors-xtra :parameter-descriptors-all 
-		   :symbol-parameter-descriptor :return-type
-		   :body :restarts :apply-parameter :apply-all-parameters :query))
+		(:help request-list)
 		(:name name)
 		(:ansi-lambda-list ansi-lambda-list)
 		(:parameter-symbols flat-parameters-list)
@@ -244,7 +264,7 @@
 		       (error "Invalid parameter ~a: should be in ~a"
 			      (first request-arg)
 			      ansi-lambda-list))))
-		(:apply-all-parameters ;(sym pd-request [request-arglist]
+		(:apply-all-parameters ; (sym pd-request [request-arglist]
                  (let* ((pd-list (@self :parameter-descriptors-all))
                         (arglist (second request-arg))
                         (request (first request-arg)))
@@ -257,8 +277,10 @@
                              request 
                              (nth i arglist))))))))
 		(:documentation 
-		 (let ((s (format nil "~{~a~%~}" documentation-strings)))
-                   (subseq s 0 (1- (length s)))))
+		 (let ((s (and documentation-strings (format nil "~{~a~%~}" documentation-strings))))
+                   (if s 
+                       (subseq s 0 (1- (length s)))
+                     "TODO: documentation")))
 		(:query
 		 (reverse (pairlis
 			   (list :name
@@ -269,8 +291,8 @@
 				 :rest
 				 :has-xtra
 				 :xtra-type
-				 :parameter-symbols
 				 :ansi-lambda-list
+				 :parameter-symbols
 				 :documentation
 				 :return-type
 				 :restarts
@@ -283,9 +305,10 @@
 				 rest-parameter
 				 (not (null xtra-parameters))
 				 xtra-type
-				 flat-parameters-list
 				 ansi-lambda-list
-				 documentation-strings
+				 flat-parameters-list
+				 ;documentation-strings
+                                 (@self :documentation)
 				 return-type
 				 restarts
 				 body))))
@@ -522,8 +545,8 @@
            ((a number) &key (b number (lambda (x) (< x 10)) 3))
          "This is a function of two arguments, A and B"
          "returning printed A / B"
-         (:function-return-type number)
          (:function-restarts (division-by-zero (a b condition) (temp a :b 1)))
+         (:function-return-type string)
          (format nil "~a" (/ a b))))
      (let ((fn
             (@instantiate-function-descriptor *fd*))) 
