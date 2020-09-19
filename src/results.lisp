@@ -1,34 +1,37 @@
-(defpackage :safer-code/src/results
-	(:use :cl)
-	(:export :safe-function-success :safe-function-value-multiple
-		:safe-function-value :safe-function-extra-values
-		:safe-function-return))
+(defpackage :cl-fd/src/results
+	(:use :cl :cl-fd/src/utilities :cl-fd/src/types)
+	(:export :fd-function-success 
+         :fd-function-value-multiple 
+         :fd-function-value
+         :fd-function-extra-values
+         :fd-function-return
+         :fd-function-explain))
 
-(in-package :safer-code/src/results)
+(in-package :cl-fd/src/results)
 
-(declaim (inline safe-function-success))
-(defun safe-function-success (result)
+(defun-inline fd-function-success ((result fd-return)) T
   (car result))
 
-(declaim (inline safe-function-value-multiple))
-(defun safe-function-value-multiple (result)
+(defun-inline fd-function-value-multiple ((result fd-return)) T
   (consp (second result)))
 
-(declaim (inline safe-function-value))
-(defun safe-function-value (result)
-  (if (and (safe-function-success result)
-           (safe-function-value-multiple result))
+(defun-inline fd-function-value ((result fd-return)) T
+  (if (and (fd-function-success result)
+           (fd-function-value-multiple result))
       (first (second result))
     (second result)))
 
-(declaim (inline safe-function-extra-values))
-(defun safe-function-extra-values (result)
-  (if (and (safe-function-success result)
-           (safe-function-value-multiple result))
+(defun-inline fd-function-extra-values ((result fd-return)) cons
+  (if (and (fd-function-success result)
+           (fd-function-value-multiple result))
       (rest (second result))
     (error "No multiple values")))
 
-(declaim (inline safe-function-return))
-(defun safe-function-return (success result)
+(defun-inline fd-function-return  (success result) fd-return
   (list success result))
+
+(defun-inline fd-function-explain ((result fd-return)) T
+  (if (fd-function-success result)
+      (print "Nothing to explain, function call successful")
+    (format nil "~a~%" (fd-function-value result))))
 

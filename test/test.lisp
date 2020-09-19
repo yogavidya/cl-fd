@@ -1,4 +1,4 @@
-(in-package :safer-code/test)
+(in-package :cl-fd/test)
 
 (defparameter *sep* (make-string 80 :initial-element #\-))
 (defparameter *result* nil)
@@ -38,7 +38,7 @@
          (when (and (consp *result*) (null (safe-function-success *result*)))
            (print-safe-defun-diagnostic ,test-name ,lambda-list ,args :expected-fail ,expected-fail))))))
 
-(remove-tests :all :safer-code/test)
+(remove-tests :all :cl-fd/test)
 
 (defun safe-defun-test-01 ()
   (test-safe-defun 01-safe-defun/empty 
@@ -67,7 +67,7 @@
                    :lambda-list ( (a string) )
                    :args (42) 
                    :expected-fail T
-                   :xtra-tests ((assert-true (typep (safe-function-value *result*) 'safer-code/src/conditions:arguments-type-error)))
+                   :xtra-tests ((assert-true (typep (safe-function-value *result*) 'cl-fd/src/conditions:arguments-type-error)))
                    :body ((=> string) 
                           a)))
 
@@ -84,7 +84,7 @@
                    :lambda-list  ( (a string) )  
                    :args ("pippo")
                    :expected-fail T
-                   :xtra-tests ((assert-true (typep (safe-function-value *result*) 'safer-code/src/conditions:return-type-error)))
+                   :xtra-tests ((assert-true (typep (safe-function-value *result*) 'cl-fd/src/conditions:return-type-error)))
                    :body ((=> number) 
                           a)))
 
@@ -125,14 +125,14 @@
 #|
  Nota a me stesso:
 il test 11 fallisce perch� la funzione restituisce una condizione.
-Tema: il velore (second) del safer-code-return dovrebbe sempre essere una lista?
+Tema: il velore (second) del cl-fd-return dovrebbe sempre essere una lista?
 Come gestire la lettura del valore restituito?
 Pensaci, Salvatorino!
 |#
 
 (defun collect-safe-defun-test-generators ()
   (let ((flist (list)))
-    (with-package-iterator (next-symbol '(:safer-code/test)
+    (with-package-iterator (next-symbol '(:cl-fd/test)
                                         :internal)
       (loop
        (multiple-value-bind (more? symbol) (next-symbol)
@@ -158,5 +158,5 @@ Pensaci, Salvatorino!
   (setf *print-failures* T)
   (use-debugger T)
   (let 
-      ((test-results (run-tests (sorted-test-names) :safer-code/test)))
+      ((test-results (run-tests (sorted-test-names) :cl-fd/test)))
     (print-errors test-results *error-output*)))

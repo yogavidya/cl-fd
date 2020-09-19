@@ -1,5 +1,3 @@
-					;( (a string (check-fn check-form)) )
-;;; => (&key (a string :check check-fn :default [default]))
 
 
 (defparameter *ll* 
@@ -35,7 +33,7 @@
   (let* ((p-structured (not (atom p)))
          (p-len (if p-structured (length p) 1))
          (p-typed-p (>= p-len 2))
-         (p-validated-p (>= p-len 3))
+         (p-validated-p (and (>= p-len 3) (third p)))
          (p-validated-structured-p (and p-validated-p (consp (third p))))
          (p-name (if p-structured (first p) p))
          (p-type (or (and p-typed-p (second p)) 'T))
@@ -135,8 +133,6 @@
 (defun count-if-true (x)
   (if x 1 0))
 
-(defmacro @self (request &optional request-arg)
-  `(apply this (list  this ,request ,request-arg)))
 
 (defun list-head-if (l test)
   (labels 
@@ -146,11 +142,17 @@
            nil))) 
     (rec l)))
 
+(defun step-request-list (rl)
+  (if (atom (car rl))
+      (nthcdr 2 rl)
+    (cdr rl)))
+
 
 (defmacro make-function-descriptor (name lambda-list &body body)
   `(let* ((name ',name)
           (original-lambda-list ',lambda-list)
-          (parameter-sets (parse-lambda-list original-lambda-list)) ;all parameter descriptors
+          (parameter-sets (parse-lambda-list original-lambda-list)) ;all parameter descriptors, structured
+          (parameter-descriptors (append (car parameter-sets) (cadadr parameter-sets))) ;all parameter descriptors, flat
           (required-parameters 
             (parameter-names-from-descriptor-list  (first parameter-sets)))
           ;; next block generates bindings for lists for extra parameter symbols
@@ -214,121 +216,99 @@
 		(length documentation-strings)) 
 	     original-body))
           (request-list
-           '(:help
-             :name 
-             :ansi-lambda-list 
-             :parameter-symbols 
-             :parameter-descriptors-required
-             :parameter-descriptors-xtra 
-             :parameter-descriptors-all 
-             :symbol-parameter-descriptor 
-             :function-model
-             :return-type
-             :body 
-             :restarts 
-             (:apply-parameter 
+           (list
+            :name name 
+            :ansi-lambda-list ansi-lambda-list
+            :parameter-symbols flat-parameters-list
+            :parameter-descriptors-required (first parameter-sets)
+            :parameter-descriptors-xtra (cadadr parameter-sets)
+            :parameter-descriptors-all (append 
+                                        (car parameter-sets) 
+                                        (cadadr parameter-sets))
+            '(:symbol-parameter-descriptor PARAMETER-SYMBOL) 
+            :function-model (list name ansi-lambda-list)
+            :return-type (if return-type return-type 'T)
+            :body body
+            :restarts restarts
+            '(:apply-parameter 
               (SYMBOL PARAMETER-DESCRIPTOR-REQUEST [ARGUMENT])) 
-             (:apply-all-parameters
+            '(:apply-all-parameters
               (PARAMETER-DESCRIPTOR-REQUEST [ARGUMENT LIST])) 
-             :documentation 
-             :query))
+            :documentation (let 
+                               ((s 
+                                 (and documentation-strings 
+                                      (format nil 
+                                              "~{~a~%~}" 
+                                              documentation-strings))))
+                             (if s 
+                                 (subseq s 0 (2- (length s)))
+                               "TODO: documentation"))
+            '(:query)))
           (query-ht 
            (let ((qht (make-hash-table :test 'eq)))
+             (iter (for r on request-list by #'step-request-list)
+               (when (atom (car r))
+                 (setf 
+                  (gethash (car r) qht)
+                  (second r))))
              qht))
+          (help 
+           (iter (for r on request-list by #'step-request-list)
+                 (collect (car r))))
+          (request-tokens-parameterless 
+           (iter (for r on request-list by #'step-request-list)
+             (when (atom (car r))
+                 (collect (car r)))))
 	  (closure 
 	    (lambda (this request &optional request-arg)
-	      (case request
-		(:help request-list)
-		(:name name)
-		(:ansi-lambda-list ansi-lambda-list)
-		(:parameter-symbols flat-parameters-list)
-		(:parameter-descriptors-required (first parameter-sets))
-		(:parameter-descriptors-xtra
-		 (cadadr parameter-sets))
-		(:parameter-descriptors-all 
-		 (append (car parameter-sets) (cadadr parameter-sets)))
-		(:symbol-parameter-descriptor
+              (cond 
+               ((member request request-tokens-parameterless)
+                (gethash request query-ht))
+               ((eq request :help) (pprint help))
+               ((eq request :query)
+                (iter (for r in request-tokens-parameterless)
+                  (format t "~s: ~s~%" r (gethash r query-ht))))
+               ((eq request :symbol-parameter-descriptor)
 		 (find-if 
 		  (lambda (pd) 
 		    (eq request-arg (funcall pd :name))) 
-		  (apply this (list this :parameter-descriptors-all))))
-                (:function-model (list name ansi-lambda-list))
-		(:return-type (if return-type return-type 'T))
-		(:body body)
-		(:restarts restarts)
-		(:apply-parameter ; (sym pd-request [pd-request-arg])
-		 (let 
-		     ((pd (@self :symbol-parameter-descriptor (first request-arg)))) 
-		   (if pd
-		       (funcall pd (second request-arg) (third request-arg))
-		       (error "Invalid parameter ~a: should be in ~a"
-			      (first request-arg)
-			      ansi-lambda-list))))
-		(:apply-all-parameters ; (sym pd-request [request-arglist]
-                 (let* ((pd-list (@self :parameter-descriptors-all))
-                        (arglist (second request-arg))
-                        (request (first request-arg)))
-		 (iter (for i from 0 below (length pd-list))
-		   (let ((p-name (funcall (nth i pd-list) :name)))
-		     (collect 
-                      (cons p-name 
-                            (funcall 
-                             (nth i pd-list) 
-                             request 
-                             (nth i arglist))))))))
-		(:documentation 
-		 (let ((s (and documentation-strings (format nil "~{~a~%~}" documentation-strings))))
-                   (if s 
-                       (subseq s 0 (1- (length s)))
-                     "TODO: documentation")))
-		(:query
-		 (reverse (pairlis
-			   (list :name
-				 :original-lambda-list
-				 :required
-				 :optional
-				 :keyword
-				 :rest
-				 :has-xtra
-				 :xtra-type
-				 :ansi-lambda-list
-				 :parameter-symbols
-				 :documentation
-				 :return-type
-				 :restarts
-				 :body)
-			   (list name
-				 original-lambda-list
-				 required-parameters
-				 optional-parameters
-				 keyword-parameters
-				 rest-parameter
-				 (not (null xtra-parameters))
-				 xtra-type
-				 ansi-lambda-list
-				 flat-parameters-list
-				 ;documentation-strings
-                                 (@self :documentation)
-				 return-type
-				 restarts
-				 body))))
-		(otherwise (error "Unknown request for function descriptor: ~a" request))))))
+		  parameter-descriptors))
+               ((eq request :apply-parameter) ; (sym pd-request [pd-request-arg])
+                (let 
+                    ((pd (@self :symbol-parameter-descriptor (first request-arg)))) 
+                  (if pd
+                      (funcall pd (second request-arg) (third request-arg))
+                    (error "Invalid parameter ~a: should be in ~a"
+                           (first request-arg)
+                           ansi-lambda-list))))
+               ((eq request :apply-all-parameters) ; (sym pd-request [request-arglist]
+                (let* ((arglist (second request-arg))
+                       (request (first request-arg)))
+                  (iter (for i from 0 below (length parameter-descriptors))
+                    (let ((p-name (funcall (nth i parameter-descriptors) :name)))
+                      (collect 
+                       (cons p-name 
+                             (funcall 
+                              (nth i parameter-descriptors) 
+                              request 
+                              (nth i arglist))))))))
+               (T (error "Unknown request for function descriptor: ~a" request))))))
      (lambda (command &optional request-arg)
        (apply closure (list closure command request-arg)))))
 
 
-;; (in-package :safer-code/src/types)
+;; (in-package :cl-fd/src/types)
 
 
-(progn ; SAFER-CODE-RETURN
-  (defun @safer-code-raturn-valid(x)
+(progn ; TYPE: FD-RETURN
+  (defun @fd-return-valid(x)
     (and (not (null x)) (listp x) (>= (length x) 2))
     (typep (first x) 'boolean))
-  (deftype safer-code-return ()
-    `(satisfies @safer-code-raturn-valid)))
+  (deftype fd-return ()
+    `(satisfies @fd-return-valid)))
 
 
-;; (in-package :safer-code/src/conditions)
+;; (in-package :cl-fd/src/conditions)
 
 (defparameter *conditions* (list))
 
@@ -417,7 +397,7 @@
                        
 
 
-;; (in-package :safer-code/src/results)
+;; (in-package :cl-fd/src/results)
 
 (declaim (inline fd-success))
 (defun fd-success (result)
@@ -446,7 +426,7 @@
   (list success result))
 
 
-(defpackage :safer-code-restarts)
+(defpackage :cl-fd-restarts)
 ;;(in-package :safer-code/src/safe-defun)
 
 (defmacro @instantiate-function-descriptor (fd &key name as-lambda)
