@@ -1,4 +1,4 @@
-(defpackage :safer-code/test
-  (:use :cl :safer-code :lisp-unit)
+(defpackage :cl-fd/test
+  (:use :cl :cl-fd :lisp-unit)
   (:export
    :test))

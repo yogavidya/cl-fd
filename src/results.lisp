@@ -28,7 +28,7 @@
     (error "No multiple values")))
 
 (defun-inline fd-function-return  (success result) fd-return
-  (list success result))
+  (append (list success) (if (atom result) (list result)  result)))
 
 (defun-inline fd-function-explain ((result fd-return)) T
   (if (fd-function-success result)

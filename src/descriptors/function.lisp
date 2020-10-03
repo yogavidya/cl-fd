@@ -53,12 +53,12 @@
            nil))) 
     (rec l)))
 
-(defun parse-sub-lambda-list (sub-ll)
-  (mapcar #'make-parameter-descriptor sub-ll))
+(defun parse-sub-lambda-list (sub-ll &key type)
+  (mapcar #'(lambda (p) (make-parameter-descriptor p :type type)) sub-ll ))
 
 (defun parse-extra-sub-lambda-list  (xtra)
   (let ((xtra-type (first xtra)))
-    (list xtra-type (parse-sub-lambda-list (rest xtra)))))
+    (list xtra-type (parse-sub-lambda-list (rest xtra) :type xtra-type))))
 
 (defun extra-sub-lambda-lists-positions (ll &optional (start 0))
   (let ((found 
@@ -138,14 +138,12 @@
               (and xtra-type
                    (push xtra-type result)
                    (iter (for p in (cadr (second parameter-sets)))
-		     (if (eq xtra-type '&optional)
-			 (push #1=(funcall p :name) result)
-			 (if #2=(funcall p :default)
-			     (push (list #1# #2#) result)
-			     (push #1# result)))))
+		     (if (member xtra-type '(&optional &key))
+			 (push #1=(list #2=(funcall p :name) (funcall p :default)) result)
+                       (push #2# result))))
               (reverse result)))
           (original-body '(,@body)) ; the BODY argument to make-function-descriptor
-          (documentation-strings   (list-head-if original-body #'stringp))
+          (documentation-strings   (list-head-if original-body #'(lambda(f) (and (> (length original-body) 1) (stringp f)))))
           (meta-forms 
            (list-head-if 
             (nthcdr (length documentation-strings) original-body)
@@ -219,13 +217,16 @@
                 (iter (for r in request-tokens-parameterless)
                   (format t "~s: ~s~%" r (gethash r query-ht))))
                ((eq request :symbol-parameter-descriptor)
-		 (find-if 
-		  (lambda (pd) 
-		    (eq request-arg (funcall pd :name))) 
-		  parameter-descriptors))
+                (find-if 
+                 (lambda (pd) (eq (funcall pd :name) request-arg))
+                 parameter-descriptors))
                ((eq request :apply-parameter) ; (sym pd-request [pd-request-arg])
                 (let 
-                    ((pd (@self :symbol-parameter-descriptor (first request-arg)))) 
+                    ((pd 
+		       (find-if 
+			(lambda (pd)
+			  (eq (funcall pd :name)  (first request-arg))) 
+			parameter-descriptors))) 
                   (if pd
                       (funcall pd (second request-arg) (third request-arg))
                     (error "Invalid parameter ~a: should be in ~a"

@@ -7,15 +7,29 @@
 (in-package :cl-fd/src/descriptors/parameter)
 
 
-(defun make-parameter-descriptor (p)
+(defun make-parameter-descriptor (p &key type )
 ;; SYM | (SYM [TYPE] [CHECK-FN | (CHECK-FN CHECK-FORM)] [DEFAULT])
-  (assert (or (atom p) (and (listp p) (>= #1=(length p) 1) (<= #1# 4))))
-  (let* ((p-structured (not (atom p)))
+  (let* ((check 
+          (when 
+              (not
+               (or 
+                (and (atom p) (symbolp p))
+                (and (listp p) (symbolp (car p)))))
+            (error "parameter description must be a symbol or a list starting with a symbol")))
+         (p-structured (not (atom p)))
          (p-len (if p-structured (length p) 1))
+         (p-max-allowed-length 
+          (cond
+            ((null type) 3) ; symbol type check 
+            ((eq type '&rest) 3) ; same
+            (T 4))) ; symbol type check default
+         (p-name (if p-structured (first p) p))
+         (p-fields '(symbol type check-function default))
+         (check (when (and p-structured (> (length p) p-max-allowed-length))
+                  (error "description for parameter ~a longer than ~a" p-name (subseq p-fields 0 p-max-allowed-length))))
          (p-typed-p (>= p-len 2))
          (p-validated-p (and (>= p-len 3) (third p)))
          (p-validated-structured-p (and p-validated-p (consp (third p))))
-         (p-name (if p-structured (first p) p))
          (p-type (or (and p-typed-p (second p)) 'T))
          (p-validate-fn-input
            (and p-validated-p 
@@ -33,7 +47,14 @@
 		 (when (functionp maybe-fn) maybe-fn)))
 	      (p-validate-fn-input (error "Unknown validate function: ~a" p-validate-fn-input))
 	      (t nil)))
-         (p-default (and p-structured (fourth p))))
+         (p-default 
+          (and p-structured
+               (if (and 
+                    (or (null type) (eq type '&rest))
+                    (> (length p) p-max-allowed-length))
+                   (error "Default value not admitted for ~a parameter" p-name) 
+                        (fourth p)))))
+    (declare (ignore check))
     (lambda (request &optional request-arg) 
       (case request
         (:name p-name)

@@ -2,7 +2,13 @@
   (:use :cl :iterate
    :cl-fd/src/utilities :cl-fd/src/results :cl-fd/src/descriptors/function :cl-fd/src/instantiator)
   (:export
-   :*scratch* :macroexpand-to-file
+   :*scratch* 
+   :macroexpand-to-file
+   :defun-inline 
+   :append* 
+   :maptree 
+   :destructuring-maptree 
+   :subst-markers
    :make-function-descriptor :fd-instantiate
    :fd-function-success 
    :fd-function-value-multiple 

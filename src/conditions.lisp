@@ -18,7 +18,7 @@
     :initarg :function-model
     :type cons))
   (:report (lambda (condition stream)
-             (format stream "Return type mismatch for ~a: expected type ~a, but found ~a, which is a ~a."
+             (format stream "Return type mismatch for ~a:~%expected type ~a, but found ~a, which is a ~a."
                      (function-model condition)
                      (type-error-expected-type condition)
                      #1=(type-error-datum condition)
@@ -46,7 +46,7 @@
                        (if #1=(mismatched-parameters condition)
                          (iter (for c in #1#)
                            (collect 
-                            (format nil "TYPE: PARAMETER ~a EXPECTED ~a BUT FOUND ~s (~a)~%"
+                            (format nil "TYPE: PARAMETER ~a EXPECTED ~a BUT FOUND ~s (~a)"
                                     (mismatched-argument-name c)
                                     (mismatched-argument-type c)
                                     #2=(mismatched-argument-value c)
