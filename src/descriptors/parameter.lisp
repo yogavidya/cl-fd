@@ -1,8 +1,7 @@
 (defpackage :cl-fd/src/descriptors/parameter
   (:use :cl :cl-fd/src/conditions :cl-fd/src/types)
   (:export 
-   :make-parameter-descriptor
-   ))
+   :make-parameter-descriptor))
 
 (in-package :cl-fd/src/descriptors/parameter)
 
@@ -30,7 +29,18 @@
          (p-typed-p (>= p-len 2))
          (p-validated-p (and (>= p-len 3) (third p)))
          (p-validated-structured-p (and p-validated-p (consp (third p))))
-         (p-type (or (and p-typed-p (second p)) 'T))
+         (p-type (or 
+                  (and p-typed-p 
+                       (let 
+                           ((v (second p))) 
+                         (if 
+                             (and (consp v) (= (length v) 1)) (car v) 
+                           v)))
+                     'T))
+         (check (let ((v (valid-typecheck-p p-type T))) 
+                  (when (null (first v))
+                    (error "Use of ~a as type specifier for parameter ~a triggers condition: ~a"
+                           p-type p-name (second v)))))
          (p-validate-fn-input
            (and p-validated-p 
                     (third p)))

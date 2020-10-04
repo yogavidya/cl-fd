@@ -1,5 +1,5 @@
 (defpackage :cl-fd/src/descriptors/function
-  (:use :cl :iterate :cl-fd/src/descriptors/parameter)
+  (:use :cl :iterate :cl-fd/src/types :cl-fd/src/descriptors/parameter)
   (:export :make-function-descriptor))
 
 (in-package :cl-fd/src/descriptors/function)
@@ -24,7 +24,14 @@
   (and
    (consp exp)
    (= (length exp) 2)
-   (eq (first exp) :function-return-type)))
+   (eq (first exp) :function-return-type)
+   (let ((v (cl-fd/src/types:valid-typecheck-p (second exp) T))) 
+     (if (null (first v))
+         (error "Use of ~a as type specifier for return value triggers condition: ~a"
+                (second exp) (second v))
+       T))))
+
+
 
 (defun valid-restarts-specification (exp parameter-symbols)
   (and
@@ -153,7 +160,7 @@
           (return-type (let ((rf (find-if #'(lambda (f) (eq (car f) :function-return-type)) meta-forms)))
                          (or
                           (and (valid-return-type-specification rf)
-                               (rest rf))
+                               (second rf))
                           T)))
           (restarts (let ((rf (find-if #'(lambda (f) (eq (car f) :function-restarts)) meta-forms)))
                       (and (valid-restarts-specification rf flat-parameters-list)
@@ -209,6 +216,7 @@
                  (collect (car r)))))
 	  (closure 
 	    (lambda (this request &optional request-arg)
+              (declare (ignore this)) ; for now
               (cond 
                ((member request request-tokens-parameterless)
                 (gethash request query-ht))

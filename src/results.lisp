@@ -13,25 +13,21 @@
   (car result))
 
 (defun-inline fd-function-value-multiple ((result fd-return)) T
-  (consp (second result)))
+  (> (length result) 2))
+
+(defun-inline fd-function-extra-values ((result fd-return)) 
+    (or null cons) 
+    (and (fd-function-success result)
+         (nthcdr 2 result)))
 
 (defun-inline fd-function-value ((result fd-return)) T
-  (if (and (fd-function-success result)
-           (fd-function-value-multiple result))
-      (first (second result))
-    (second result)))
-
-(defun-inline fd-function-extra-values ((result fd-return)) cons
-  (if (and (fd-function-success result)
-           (fd-function-value-multiple result))
-      (rest (second result))
-    (error "No multiple values")))
+  (second result))
 
 (defun-inline fd-function-return  (success result) fd-return
   (append (list success) (if (atom result) (list result)  result)))
 
-(defun-inline fd-function-explain ((result fd-return)) T
+(defun-inline fd-function-explain ((result fd-return) &optional (stream *standard-output*)) T
   (if (fd-function-success result)
-      (print "Nothing to explain, function call successful")
-    (format nil "~a~%" (fd-function-value result))))
+      (format stream "Nothing to explain, function call successful.~%")
+    (format stream "~a: ~a~%" (type-of #1=(fd-function-value result)) #1#)))
 

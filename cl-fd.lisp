@@ -9,7 +9,9 @@
    :maptree 
    :destructuring-maptree 
    :subst-markers
-   :make-function-descriptor :fd-instantiate
+   :valid-typecheck-p
+   :make-function-descriptor 
+   :fd-instantiate
    :fd-function-success 
    :fd-function-value-multiple 
    :fd-function-value

@@ -2,7 +2,8 @@
   (:use :cl :cl-fd/src/utilities)
   (:export :fd-return :mismatched-argument :invalid-argument
    :mismatched-argument-name :mismatched-argument-type :mismatched-argument-value
-   :invalid-argument-name :invalid-argument-op :invalid-argument-value))
+   :invalid-argument-name :invalid-argument-op :invalid-argument-value
+   :valid-typecheck-p))
 
 
 (in-package :cl-fd/src/types)
@@ -11,12 +12,15 @@
 ;; The format for return value in functions which are 
 ;; a) described by a function-descriptor, and 
 ;; b) defined by fd-instantiate.
-;; It's a list R of two elements: (FIRST R) is a boolean
-;; value, meaning the function executed normally (T)
+;; It's a list R of at least two elements: 
+;; (FIRST R) is a boolean value, 
+;; meaning the function executed normally (T)
 ;; or it had to handle a condition (NIL);
 ;; (SECOND R) is the actual returned value if
 ;; (FIRST R) is true, or an object with subtype 
 ;; CONDITION if (FIRST R) is false.
+;; Multiple values after the main one
+;; are stored as (NTHCDR 2 R).
 (defun-inline fd-return-valid (x) boolean
   (and (not (null x)) (listp x) (>= (length x) 2))
   (typep (first x) 'boolean))
@@ -93,3 +97,7 @@
     (cons)
     (satisfies check-invalid-argument)))
 
+(defun-inline valid-typecheck-p ((typesym symbol)(value t)) fd-return
+  (multiple-value-bind (v c) 
+      (ignore-errors (typep value typesym)) 
+    (list #1=(null c) (if #1# v c))))

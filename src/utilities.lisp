@@ -67,12 +67,12 @@
 
 
 (defun subst-markers (subst-list &rest forms)
-  (flet ((new-value (x marker value &key not-null) 
-                      (if (equalp x marker)
-                          (if not-null 
-                              (or value :destructuring-maptree-remove-node) 
-                            value)
-                        x)))
+  (flet ((new-value (x marker value &key not-null)
+           (if (and (symbolp x) (equalp (symbol-name x) (symbol-name marker)))
+               (if not-null 
+                   (or value :destructuring-maptree-remove-node) 
+                 value)
+             x)))
     (let ((result (copy-tree forms)))
       (iter (for (marker value destructured not-null) in subst-list)
           (setf result 
@@ -80,4 +80,5 @@
                          result 
                          (lambda (x) (new-value x marker value :not-null not-null)))))
       result)))
+
 

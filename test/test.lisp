@@ -6,7 +6,6 @@
 (defparameter *result* nil)
 
 (defun %cl-fd-test-body (&key label lambda-list args fail body)
-  ;(setf *fd* (eval `(make-function-descriptor temp ,lambda-list ,@body)))
   (car (subst-markers
    (list
     (list '%label label)
@@ -19,22 +18,21 @@
     (list '@body body T ) ; destructure 
     (list '%fail fail))
      '(define-test %label
-        (setf *fd* (make-function-descriptor temp (@lambda-list-not-null) @body))
-       (fd-instantiate *fd*)
-       (setf *result* (temp @args-not-null))
-       ;(format *error-output* "lambda list: ~a, return type: ~a, expected: ~a~%" 
-               ;'%lambda-list
-               ;(type-of (fd-function-value *result*))
-               ;'%return-type)
-       (format *error-output* "--------------------------------~%")
+        (setf *fd* (make-function-descriptor test-function (@lambda-list-not-null) @body))
+       ;(fd-instantiate *fd*)
+       (setf *result* (funcall (fd-instantiate *fd* :as-lambda T) @args-not-null))
+       (format *error-output* #1="~a~%" #2=(make-string 80 :initial-element #\-))
        (funcall *fd* :query)
-       (format *error-output* "temp ~s => success = ~a, value = ~a~%" 
+       (format *error-output* "temp ~s output: ~%*  ~:[condition report: \"~a\"~a~;value: ~s~]~%"
 	       '%args 
 	       (fd-function-success *result*)
-	       (fd-function-value *result*))
+	       (fd-function-value *result*)
+               (format nil "~%(*** NOTE: a condition was~:[ NOT~;~] expected)~%" %fail))
        (if %fail
 	   (assert-false (fd-function-success *result*))
-         (assert-true (fd-function-success *result*)))))))
+         (assert-true (fd-function-success *result*)))
+       (format *error-output* #1# #2#)
+))))
 
 (defun cl-fd-test (&key label lambda-list args fail body)
   (eval (%cl-fd-test-body :label label :lambda-list lambda-list :args args :fail fail :body body)))
@@ -68,12 +66,16 @@
 (cl-fd-test :label '07-identity-atom-typed-arg+return-return-error 
             :lambda-list '((a string)) 
             :args '("pippo")
-            :fail t
+            :fail T
             :body '((:function-return-type number) a))
 (cl-fd-test :label '08-identity-atom-required+keyword
             :lambda-list '(a &key b) 
             :args '("pippo")
             :body '((list a b)))
+(cl-fd-test :label '09-identity-values 
+            :lambda-list '(a) 
+            :args '((list 1 2 3)) 
+            :body '((values a)))
 
 
 (setf lisp-unit:*print-errors* T)
