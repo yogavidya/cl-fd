@@ -1,41 +1,38 @@
 (in-package :cl-fd/test)
 
-
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *backup-readtable* (copy-readtable))
+  (setf *readtable* *subst-readtable*))
 
 (defparameter *fd* nil)
 (defparameter *result* nil)
 
-(defun %cl-fd-test-body (&key label lambda-list args fail body)
-  (car (subst-markers
-   (list
-    (list '%label label)
-    (list '%lambda-list lambda-list)
-    (list '@lambda-list lambda-list T) ; destructure
-    (list '@lambda-list-not-null lambda-list T T) ; destructure not null
-    (list '%args args) 
-    (list '@args args T) ; destructure
-    (list '@args-not-null args T T) ; destructure not-null
-    (list '@body body T ) ; destructure 
-    (list '%fail fail))
-     '(define-test %label
-        (setf *fd* (make-function-descriptor test-function (@lambda-list-not-null) @body))
-       ;(fd-instantiate *fd*)
-       (setf *result* (funcall (fd-instantiate *fd* :as-lambda T) @args-not-null))
-       (format *error-output* #1="~a~%" #2=(make-string 80 :initial-element #\-))
-       (funcall *fd* :query)
-       (format *error-output* "temp ~s output: ~%*  ~:[condition report: \"~a\"~a~;value: ~s~]~%"
-	       '%args 
-	       (fd-function-success *result*)
-	       (fd-function-value *result*)
-               (format nil "~%(*** NOTE: a condition was~:[ NOT~;~] expected)~%" %fail))
-       (if %fail
-	   (assert-false (fd-function-success *result*))
-         (assert-true (fd-function-success *result*)))
-       (format *error-output* #1# #2#)
-))))
-
 (defun cl-fd-test (&key label lambda-list args fail body)
-  (eval (%cl-fd-test-body :label label :lambda-list lambda-list :args args :fail fail :body body)))
+  #{
+  #[   '%label label ]
+  #[   '%lambda-list lambda-list ]
+  #[@  '@lambda-list lambda-list T ] 
+  #[@* '@lambda-list-not-null lambda-list ] 
+  #[   '%args args ] 
+  #[@  '@args args ] 
+  #[@* '@args-not-null args ] 
+  #[@  '@body body ] 
+  #[@  '%fail fail ]
+  '(define-test %label
+     (setf *fd* (make-function-descriptor test-function (@lambda-list-not-null) @body))
+     (setf *result* (funcall (fd-instantiate *fd* :as-lambda T) @args-not-null))
+     (format *error-output* #1="~a~%" #2=(make-string 80 :initial-element #\-))
+     (funcall *fd* :query)
+     (format *error-output* "temp ~s output: ~%*  ~:[condition report: \"~a\"~a~;value: ~s~]~%"
+             '%args 
+             (fd-function-success *result*)
+             (fd-function-value *result*)
+             (format nil "~%(*** NOTE: a condition was~:[ NOT~;~] expected)~%" %fail))
+     (if %fail
+         (assert-false (fd-function-success *result*))
+       (assert-true (fd-function-success *result*)))
+     (format *error-output* #1# #2#)) } )
+
 
 (remove-tests :all (find-package :cl-fd/test))
 
@@ -98,6 +95,11 @@
                   (string<= (symbol-name a)(symbol-name b)))) 
           (find-package :cl-fd/test))))
     result))
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (setf *readtable* *backup-readtable*))
+
 
 #|
 (cl-fd/src/descriptors/function:make-function-descriptor pippo ((a string) (b fixnum) &key (add-prefix boolean T) (prefix string "=> ")) (:function-return-type string) (if add-prefix (format nil "~a ~s ~n" prefix a b) (format nil "~s ~n" a b)))

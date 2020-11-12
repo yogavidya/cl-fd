@@ -13,41 +13,41 @@
 (defpackage :cl-fd-restarts)
 (in-package :cl-fd/src/instantiator)
 
-(defun %instantiate-body (fd &key name as-lambda)
-  (car 
-   (subst-markers 
-    (list
-     (list '%fmakunbound-form 
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *backup-readtable* (copy-readtable))
+  (setf *readtable* *subst-readtable*))
+
+(defun fd-instantiate (fd &key name as-lambda)
+  #{
+     #[ '%fmakunbound-form 
            (when (null as-lambda) 
              (list 'fmakunbound (list 'quote
-                                      (or name (funcall fd :name))))))
-     (list '%unintern-form
+                                      (or name (funcall fd :name))))) ]
+     #[ '%unintern-form
            (when (null as-lambda) 
              (list 'unintern (list 'quote
-                                      (or name (funcall fd :name))))))
-     (list '%fd fd)
-     (list '@function-header 
+                                      (or name (funcall fd :name))))) ]
+     #[ '%fd fd ]
+     #[@ '@function-header 
            (cond (as-lambda 'lambda)
                  (name (list 'defun name))
-                 (T (list 'defun (funcall fd :name))))
-           T) ; destructured
-     (list '%ansi-lambda-list (funcall fd :ansi-lambda-list)) ; as a list
-     (list '@formal-parameters (funcall fd :parameter-symbols) T) ; destructured
-     (list '@formal-parameters-not-null (funcall fd :parameter-symbols) T T) ; destructured not-null
-     (list '%documentation (funcall fd :documentation))
-     (list '%block-name (intern (symbol-name (gensym))))
-     (list '%function-model (funcall fd :function-model))
-     (list '@body (funcall fd :body) T) ; destructured
-     (list '%return-type (funcall fd :return-type))
-     (list '@restarts (funcall fd :restarts) T T)
-     (list '%declare-ignore-parameters ; destructured not-null
+                 (T (list 'defun (funcall fd :name)))) ]
+     #[  '%ansi-lambda-list (funcall fd :ansi-lambda-list) ] ; as a list
+     #[@  '@formal-parameters (funcall fd :parameter-symbols) ] ; destructured
+     #[@*  '@formal-parameters-not-null (funcall fd :parameter-symbols) ] ; destructured not-null
+     #[  '%documentation (funcall fd :documentation) ]
+     #[  '%block-name (intern (symbol-name (gensym))) ]
+     #[  '%function-model (funcall fd :function-model) ]
+     #[@  '@body (funcall fd :body) ] ; destructured
+     #[  '%return-type (funcall fd :return-type) ]
+     #[@*  '@restarts (funcall fd :restarts) ]
+     #[@*  '%declare-ignore-parameters ; destructured not-null
 	   (let ((syms (funcall fd :parameter-symbols)))
 	     (when syms
 	       (list (list 'declare
 			   (append (list 'ignore)
-				   syms)))))
-           T T))
-
+				   syms))))) ]
     '(progn
        %fmakunbound-form
        %unintern-form
@@ -118,10 +118,10 @@
                                (fd-function-return nil error-info))
                              (return-type-error (@formal-parameters-not-null error-info)
                                %declare-ignore-parameters
-                               (fd-function-return nil error-info)))))))))
+                               (fd-function-return nil error-info)))))) } ) 
 
-(defun fd-instantiate (fd &key name as-lambda)
-  (eval (%instantiate-body fd :name name :as-lambda as-lambda)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (setf *readtable* *backup-readtable*))
 
 
 
