@@ -26,7 +26,8 @@
 (defun-inline fd-function-return  (success result) fd-return
   (append (list success) (if (atom result) (list result)  result)))
 
-(defun-inline fd-function-explain ((result fd-return) &optional (stream *standard-output*)) T
+(defun-inline fd-function-explain ((result fd-return) &optional stream) T
+  (when (null stream) (setf stream *standard-output*))
   (if (fd-function-success result)
       (format stream "Nothing to explain, function call successful.~%")
     (format stream "~a: ~a~%" (type-of #1=(fd-function-value result)) #1#)))

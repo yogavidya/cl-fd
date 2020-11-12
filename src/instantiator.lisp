@@ -46,7 +46,7 @@
 	       (list (list 'declare
 			   (append (list 'ignore)
 				   syms)))))
-           T T)) 
+           T T))
 
     '(progn
        %fmakunbound-form

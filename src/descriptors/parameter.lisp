@@ -70,7 +70,7 @@
         (:name p-name)
         (:type p-type)
         (:default p-default)
-        (:check-type (subtypep (type-of request-arg) p-type ))
+        (:check-type (or (typep request-arg p-type) (subtypep (type-of request-arg) p-type )))
         (:validate (ignore-errors 
 		    (cond
 		      ((not p-validated-p) T)

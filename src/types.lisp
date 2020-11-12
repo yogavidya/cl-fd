@@ -8,6 +8,7 @@
 
 (in-package :cl-fd/src/types)
 
+
 ;; TYPE: FD-RETURN
 ;; The format for return value in functions which are 
 ;; a) described by a function-descriptor, and 
@@ -101,3 +102,12 @@
   (multiple-value-bind (v c) 
       (ignore-errors (typep value typesym)) 
     (list #1=(null c) (if #1# v c))))
+
+#|
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (progn
+    (setf *backup-readtable* (copy-readtable))
+    (setf *readtable* *subst-readtable*)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+    (setf *readtable* *backup-readtable*))
+|#

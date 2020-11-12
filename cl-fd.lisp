@@ -9,6 +9,7 @@
    :maptree 
    :destructuring-maptree 
    :subst-markers
+   :*subst-readtable*
    :valid-typecheck-p
    :make-function-descriptor 
    :fd-instantiate

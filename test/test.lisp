@@ -76,6 +76,15 @@
             :lambda-list '(a) 
             :args '((list 1 2 3)) 
             :body '((values a)))
+(cl-fd-test :label '10-boolean-keyword
+            :lambda-list '((a string) 
+                           (b fixnum) 
+                           &key (add-prefix boolean nil) 
+                           (prefix string nil "=> "))
+            :args '("test" 12 :add-prefix t) 
+            :body '((if add-prefix 
+                        (format nil "~a ~s ~d" prefix a b) 
+                      (format nil "~s ~d" a b))))
 
 
 (setf lisp-unit:*print-errors* T)
@@ -90,3 +99,6 @@
           (find-package :cl-fd/test))))
     result))
 
+#|
+(cl-fd/src/descriptors/function:make-function-descriptor pippo ((a string) (b fixnum) &key (add-prefix boolean T) (prefix string "=> ")) (:function-return-type string) (if add-prefix (format nil "~a ~s ~n" prefix a b) (format nil "~s ~n" a b)))
+|#

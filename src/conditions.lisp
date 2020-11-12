@@ -12,6 +12,7 @@
 
 (defparameter *conditions* (list))
 
+
 (define-condition return-type-error (type-error)
   ((function-model
     :accessor function-model
